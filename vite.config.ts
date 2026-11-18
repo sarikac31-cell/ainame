@@ -14,7 +14,7 @@ export default defineConfig(() => {
         registerType: 'autoUpdate',
         includeAssets: ['icon.svg', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
         devOptions: {
-          enabled: false,
+          enabled: true,
           type: 'module',
         },
         workbox: {

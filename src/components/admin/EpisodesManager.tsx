@@ -242,14 +242,12 @@ export function EpisodesManager({
                   adsRequired: 1,
                 },
               };
-              if (adminUid !== 'studio-preview-admin') {
-                await bulkUpdateAccessRules({
-                  seriesId: selectedSeries.id,
-                  seasonAccessPatch: nextSeasonAccess,
-                  adminUid,
-                  actionSummary: `Updated Season ${seasonNum} access on "${selectedSeries.title}" to ${nextMode}`,
-                });
-              }
+              await bulkUpdateAccessRules({
+                seriesId: selectedSeries.id,
+                seasonAccessPatch: nextSeasonAccess,
+                adminUid,
+                actionSummary: `Updated Season ${seasonNum} access on "${selectedSeries.title}" to ${nextMode}`,
+              });
               onSeriesUpdated?.({ ...selectedSeries, seasonAccess: nextSeasonAccess });
               notify(`Season ${seasonNum} default access saved`, 'success');
             }}
@@ -567,9 +565,7 @@ export function EpisodesManager({
                 type="button"
                 onClick={async () => {
                   const updated: EpisodeItem = { ...editingAccessEp, access: epRuleDraft };
-                  if (adminUid !== 'studio-preview-admin') {
-                    await saveEpisodeDoc(updated, adminUid);
-                  }
+                  await saveEpisodeDoc(updated, adminUid);
                   setEpisodes((prev) =>
                     prev.map((x) => (x.id === updated.id ? updated : x))
                   );

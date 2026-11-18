@@ -18,8 +18,8 @@ import {
   deleteDoc,
   doc,
   getDoc,
+  getDocFromServer,
   getDocs,
-  getFirestore,
   increment,
   limit,
   orderBy,
@@ -28,7 +28,7 @@ import {
   updateDoc,
   where,
   writeBatch,
-} from 'firebase/firestore/lite';
+} from 'firebase/firestore';
 import { getDownloadURL, getStorage, ref, uploadBytesResumable } from 'firebase/storage';
 import firebaseConfig from '../../firebase-applet-config.json';
 import type {
@@ -67,16 +67,14 @@ import { isUnlockValid } from '../utils/accessControl';
 import { mergeSiteSettings } from '../utils/customization';
 
 export const BOOTSTRAPPED_ADMIN_EMAIL = 'krushnachaware84@gmail.com';
-export const BOOTSTRAPPED_ADMIN_EMAILS = [
-  'krushnachaware84@gmail.com',
-  'sarikac31@gmail.com',
-];
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestoreCompat();
 export const auth = getAuth(app);
 export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
+
+import { getFirestore } from 'firebase/firestore';
 
 function getFirestoreCompat() {
   return getFirestore(app, firebaseConfig.firestoreDatabaseId);
@@ -135,19 +133,12 @@ export function handleFirestoreError(
 }
 
 export async function testFirestoreConnection(): Promise<boolean> {
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-    return false;
-  }
   try {
-    await getDoc(doc(db, 'settings', 'site'));
+    await getDocFromServer(doc(db, 'settings', 'site'));
     return true;
   } catch (error) {
-    if (
-      error instanceof Error &&
-      (error.message.includes('the client is offline') ||
-        error.message.includes('unavailable'))
-    ) {
-      console.warn('Firestore backend unavailable or offline; using cached/seed fallback.');
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.error('Please check your Firebase configuration.');
     }
     return false;
   }
@@ -155,32 +146,15 @@ export async function testFirestoreConnection(): Promise<boolean> {
 
 export function isUserAdmin(profile: UserProfile | null, authUser: User | null): boolean {
   if (!authUser) return false;
-  if (
-    authUser.email &&
-    BOOTSTRAPPED_ADMIN_EMAILS.includes(authUser.email.toLowerCase()) &&
-    authUser.emailVerified
-  ) {
-    return true;
-  }
+  if (authUser.email === BOOTSTRAPPED_ADMIN_EMAIL && authUser.emailVerified) return true;
   return profile?.role === 'admin';
 }
 
 // --- Auth & User Profile ---
 
 export async function signInWithGooglePopup(): Promise<User> {
-  try {
-    const result = await signInWithPopup(auth, googleProvider);
-    return result.user;
-  } catch (error) {
-    const code = (error as { code?: string })?.code;
-    if (code === 'auth/unauthorized-domain') {
-      const host = typeof window !== 'undefined' ? window.location.hostname : 'this domain';
-      throw new Error(
-        `Google Sign-In is not yet authorized for "${host}". Add it in Firebase Console → Authentication → Settings → Authorized domains, or sign in with Email & Password.`
-      );
-    }
-    throw error;
-  }
+  const result = await signInWithPopup(auth, googleProvider);
+  return result.user;
 }
 
 export async function signInWithEmail(email: string, password: string): Promise<User> {
@@ -240,11 +214,8 @@ export async function syncUserProfileOnLogin(user: User): Promise<UserProfile> {
       return { ...existing, uid: user.uid, lastLoginAt: nowIso };
     }
 
-    const isBootstrapAdmin = Boolean(
-      user.email &&
-        BOOTSTRAPPED_ADMIN_EMAILS.includes(user.email.toLowerCase()) &&
-        user.emailVerified
-    );
+    const isBootstrapAdmin =
+      user.email === BOOTSTRAPPED_ADMIN_EMAIL && user.emailVerified;
     const newProfile: UserProfile = {
       uid: user.uid,
       displayName: user.displayName || user.email?.split('@')[0] || 'Member',

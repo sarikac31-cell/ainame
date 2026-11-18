@@ -311,26 +311,22 @@ export const AccessManagerView: React.FC<AccessManagerViewProps> = ({
     });
   }, [selectedSeries, flatOrderedEpisodes, wizardPreset, wizardParamN, plans, bulkPlanId, defaultPlan]);
 
-  const isPreview = adminUid === 'studio-preview-admin';
-
   const handleApplyBulk = async () => {
     if (!selectedSeries || selectedEpIds.length === 0) return;
     setApplyingBulk(true);
     try {
       const rule = buildRuleFromDraft(bulkMode);
       const targets = flatOrderedEpisodes.filter((ep) => selectedEpIds.includes(ep.id));
-      if (!isPreview) {
-        await bulkUpdateAccessRules({
-          seriesId: selectedSeries.id,
-          episodePatches: targets.map((ep) => ({
-            seasonId: ep.seasonId,
-            episodeId: ep.id,
-            access: rule,
-          })),
-          adminUid,
-          actionSummary: `Bulk set ${targets.length} episodes of "${selectedSeries.title}" to ${bulkMode}`,
-        });
-      }
+      await bulkUpdateAccessRules({
+        seriesId: selectedSeries.id,
+        episodePatches: targets.map((ep) => ({
+          seasonId: ep.seasonId,
+          episodeId: ep.id,
+          access: rule,
+        })),
+        adminUid,
+        actionSummary: `Bulk set ${targets.length} episodes of "${selectedSeries.title}" to ${bulkMode}`,
+      });
       setEpisodes((prev) =>
         prev.map((ep) => (selectedEpIds.includes(ep.id) ? { ...ep, access: rule } : ep))
       );
@@ -346,18 +342,16 @@ export const AccessManagerView: React.FC<AccessManagerViewProps> = ({
     if (!selectedSeries || wizardPreviewChanges.length === 0) return;
     setApplyingBulk(true);
     try {
-      if (!isPreview) {
-        await bulkUpdateAccessRules({
-          seriesId: selectedSeries.id,
-          episodePatches: wizardPreviewChanges.map((item) => ({
-            seasonId: item.ep.seasonId,
-            episodeId: item.ep.id,
-            access: item.nextRule,
-          })),
-          adminUid,
-          actionSummary: `Applied Quick Rules Wizard (${wizardPreset}) to "${selectedSeries.title}"`,
-        });
-      }
+      await bulkUpdateAccessRules({
+        seriesId: selectedSeries.id,
+        episodePatches: wizardPreviewChanges.map((item) => ({
+          seasonId: item.ep.seasonId,
+          episodeId: item.ep.id,
+          access: item.nextRule,
+        })),
+        adminUid,
+        actionSummary: `Applied Quick Rules Wizard (${wizardPreset}) to "${selectedSeries.title}"`,
+      });
       const patchMap = new Map(wizardPreviewChanges.map((c) => [c.ep.id, c.nextRule]));
       setEpisodes((prev) =>
         prev.map((ep) => ({ ...ep, access: patchMap.get(ep.id) ?? ep.access }))
@@ -372,12 +366,10 @@ export const AccessManagerView: React.FC<AccessManagerViewProps> = ({
   const handleSeedDemo = async () => {
     setSeedingDemo(true);
     try {
-      if (!isPreview) {
-        await seedHybridAccessDemoToFirestore(adminUid);
-        await onRefreshAll();
-      }
+      await seedHybridAccessDemoToFirestore(adminUid);
+      await onRefreshAll();
       setSelectedSeriesId('the-amber-signal');
-      notify('Loaded 2-Season Hybrid Access Demo ("The Amber Signal")', 'success');
+      notify('Seeded 2-Season Hybrid Access Demo ("The Amber Signal") & Demo Movies', 'success');
     } finally {
       setSeedingDemo(false);
     }
@@ -577,23 +569,21 @@ export const AccessManagerView: React.FC<AccessManagerViewProps> = ({
                           onChange={async (e) => {
                             const nextMode = e.target.value as AccessMode;
                             const rule = buildRuleFromDraft(nextMode);
-                            if (!isPreview) {
-                              await saveMovieDoc(
-                                {
-                                  ...selectedSeries,
-                                  access: rule,
-                                  isPremium:
-                                    nextMode === 'subscription_only' ||
-                                    nextMode === 'subscription_or_ad',
-                                  requiredPlanId: rule.planId ?? null,
-                                  requiredPlanName: rule.planName ?? null,
-                                  updatedAt: new Date().toISOString(),
-                                },
-                                adminUid,
-                                false
-                              );
-                              await onRefreshAll();
-                            }
+                            await saveMovieDoc(
+                              {
+                                ...selectedSeries,
+                                access: rule,
+                                isPremium:
+                                  nextMode === 'subscription_only' ||
+                                  nextMode === 'subscription_or_ad',
+                                requiredPlanId: rule.planId ?? null,
+                                requiredPlanName: rule.planName ?? null,
+                                updatedAt: new Date().toISOString(),
+                              },
+                              adminUid,
+                              false
+                            );
+                            await onRefreshAll();
                             notify(`Series default updated to ${MODE_LABELS[nextMode]}`, 'success');
                           }}
                           className="rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
@@ -671,15 +661,13 @@ export const AccessManagerView: React.FC<AccessManagerViewProps> = ({
                                       ...(selectedSeries.seasonAccess || {}),
                                       [seasonKey]: buildRuleFromDraft(nextMode),
                                     };
-                                    if (!isPreview) {
-                                      await bulkUpdateAccessRules({
-                                        seriesId: selectedSeries.id,
-                                        seasonAccessPatch: nextSeasonAccess,
-                                        adminUid,
-                                        actionSummary: `Set Season ${seasonNum} override on "${selectedSeries.title}" to ${nextMode}`,
-                                      });
-                                      await onRefreshAll();
-                                    }
+                                    await bulkUpdateAccessRules({
+                                      seriesId: selectedSeries.id,
+                                      seasonAccessPatch: nextSeasonAccess,
+                                      adminUid,
+                                      actionSummary: `Set Season ${seasonNum} override on "${selectedSeries.title}" to ${nextMode}`,
+                                    });
+                                    await onRefreshAll();
                                     notify(`Season ${seasonNum} rule updated`, 'success');
                                   }}
                                   className="rounded border border-zinc-300 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-900"

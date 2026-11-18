@@ -37,7 +37,7 @@ import {
 } from 'lucide-react';
 import {
   auth,
-  BOOTSTRAPPED_ADMIN_EMAILS,
+  BOOTSTRAPPED_ADMIN_EMAIL,
   deleteAdminUserDoc,
   deleteBannerDoc,
   deleteCommentDoc,
@@ -71,13 +71,11 @@ import {
   DEFAULT_SITE_SETTINGS,
   SEED_BANNERS,
   SEED_GENRES,
-  SEED_HYBRID_BANNERS,
-  SEED_HYBRID_MOVIES,
   SEED_MOVIES,
   SEED_PAGES,
   SEED_PLANS,
 } from './data/seedCatalog';
-import { DEFAULT_AD_SETTINGS, SEED_CUSTOM_ADS, SEED_VAST_ADS } from './data/seedAds';
+import { DEFAULT_AD_SETTINGS } from './data/seedAds';
 import {
   deleteCustomAdDoc,
   deleteVastAdDoc,
@@ -150,62 +148,12 @@ function AdminShell() {
   const [authReady, setAuthReady] = useState(false);
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [adminProfile, setAdminProfile] = useState<UserProfile | null>(null);
-  const [demoPreviewMode, setDemoPreviewMode] = useState(false);
   const [accessDeniedMsg, setAccessDeniedMsg] = useState('');
 
   // Login form state
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginBusy, setLoginBusy] = useState(false);
-
-  const isDemoPreview = demoPreviewMode && adminProfile?.uid === 'studio-preview-admin';
-
-  const navigateToUserPanel = () => {
-    if (window.location.pathname.includes('admin.html')) {
-      window.location.href = '/index.html';
-    } else {
-      window.location.hash = '#/';
-    }
-  };
-
-  const enterDemoPreview = () => {
-    const mergedMovies = [
-      ...SEED_HYBRID_MOVIES,
-      ...SEED_MOVIES.filter((m) => !SEED_HYBRID_MOVIES.some((h) => h.id === m.id)),
-    ];
-    const mergedBanners = [
-      ...SEED_HYBRID_BANNERS,
-      ...SEED_BANNERS.filter((b) => !SEED_HYBRID_BANNERS.some((h) => h.id === b.id)),
-    ];
-    setMovies(mergedMovies);
-    setGenres(SEED_GENRES);
-    setBanners(mergedBanners);
-    setPlans(SEED_PLANS);
-    setPages(SEED_PAGES);
-    setCustomAds(SEED_CUSTOM_ADS);
-    setVastAds(SEED_VAST_ADS);
-    setAdSettings(DEFAULT_AD_SETTINGS);
-    setSettings(DEFAULT_SITE_SETTINGS);
-    setBannerMovieId(mergedMovies[0]?.id ?? '');
-    setBannerImageUrl(mergedMovies[0]?.bannerUrl || mergedMovies[0]?.posterUrl || '');
-    setAccessDeniedMsg('');
-    setDemoPreviewMode(true);
-    setAdminProfile({
-      uid: 'studio-preview-admin',
-      displayName: 'Studio Preview Admin',
-      email: 'sarikac31@gmail.com',
-      photoURL: '',
-      role: 'admin',
-      status: 'active',
-      plan: 'premium',
-      subscriptionPlanId: 'plan-cinema-plus',
-      subscriptionPlanName: 'Cinema Plus',
-      planExpiresAt: null,
-      createdAt: new Date().toISOString(),
-      lastLoginAt: new Date().toISOString(),
-    });
-    notify('Entered Studio Preview Mode (local demo data)', 'info');
-  };
 
   // Navigation
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
@@ -415,7 +363,7 @@ function AdminShell() {
     );
   }
 
-  if (!adminProfile || (!demoPreviewMode && !authUser)) {
+  if (!authUser || !adminProfile) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-zinc-50 px-4 dark:bg-[#0b0b0f]">
         <div className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-8 shadow-xl dark:border-zinc-800 dark:bg-[#13131c]">
@@ -439,7 +387,7 @@ function AdminShell() {
           </h1>
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
             Access is restricted to accounts with <code className="font-mono">role = "admin"</code>{' '}
-            or bootstrapped admins ({BOOTSTRAPPED_ADMIN_EMAILS.join(', ')}).
+            or the workspace owner ({BOOTSTRAPPED_ADMIN_EMAIL}).
           </p>
 
           {accessDeniedMsg && (
@@ -526,22 +474,13 @@ function AdminShell() {
               </button>
             </form>
 
-            <div className="space-y-3 border-t border-zinc-200 pt-4 text-center dark:border-zinc-800">
-              <button
-                type="button"
-                onClick={enterDemoPreview}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#7c3aed] px-4 py-2.5 text-xs font-semibold text-white hover:bg-[#6d28d9]"
-              >
-                <Sparkles className="h-3.5 w-3.5" />
-                Open Studio Preview (Demo Data)
-              </button>
-              <button
-                type="button"
-                onClick={navigateToUserPanel}
+            <div className="border-t border-zinc-200 pt-4 text-center dark:border-zinc-800">
+              <a
+                href="/index.html"
                 className="text-xs font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
               >
                 Return to User Streaming Panel
-              </button>
+              </a>
             </div>
           </div>
         </div>
@@ -699,14 +638,13 @@ function AdminShell() {
         </nav>
 
         <div className="border-t border-zinc-200 p-3 dark:border-zinc-800">
-          <button
-            type="button"
-            onClick={navigateToUserPanel}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+          <a
+            href="/index.html"
+            className="flex items-center justify-center gap-2 rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
           >
             <Tv className="h-3.5 w-3.5" />
             View User Panel
-          </button>
+          </a>
         </div>
       </aside>
 
@@ -730,7 +668,7 @@ function AdminShell() {
 
           <div className="flex items-center gap-2 sm:gap-3">
             <span className="hidden text-xs text-zinc-500 sm:inline">
-              {adminProfile?.displayName}
+              {adminProfile.displayName}
             </span>
             <button
               type="button"
@@ -742,47 +680,17 @@ function AdminShell() {
             </button>
             <button
               type="button"
-              onClick={() => {
-                if (isDemoPreview) {
-                  setDemoPreviewMode(false);
-                  setAdminProfile(null);
-                } else {
-                  void signOutUser();
-                }
-              }}
+              onClick={() => signOutUser()}
               className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
             >
               <LogOut className="h-3.5 w-3.5" />
-              {isDemoPreview ? 'Exit Preview' : 'Logout'}
+              Logout
             </button>
           </div>
         </header>
 
         {/* Viewport Content */}
         <main className="flex-1 p-4 sm:p-6">
-          {isDemoPreview && (
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-purple-500/40 bg-purple-600/10 px-4 py-3 text-xs">
-              <div className="flex items-center gap-2 text-purple-700 dark:text-purple-200">
-                <Sparkles className="h-4 w-4 shrink-0 text-purple-500" />
-                <span>
-                  <strong>Studio Preview Mode</strong> — Inspecting local demo catalog (including{' '}
-                  <em>The Amber Signal</em> 2-season hybrid series &amp; VAST ads). Sign in with Google to persist changes to Firestore.
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDemoPreviewMode(false);
-                    setAdminProfile(null);
-                  }}
-                  className="rounded-lg bg-[#7c3aed] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#6d28d9]"
-                >
-                  Sign In Live
-                </button>
-              </div>
-            </div>
-          )}
           {/* 1. DASHBOARD */}
           {activeTab === 'dashboard' && (
             <div className="space-y-6">
@@ -800,13 +708,9 @@ function AdminShell() {
                     onClick={async () => {
                       setSeeding(true);
                       try {
-                        if (isDemoPreview) {
-                          enterDemoPreview();
-                        } else {
-                          await seedCatalogToFirestore(adminProfile!.uid);
-                          await loadAllAdmin();
-                          notify('Sample catalog seeded to Firestore', 'success');
-                        }
+                        await seedCatalogToFirestore(adminProfile.uid);
+                        await loadAllAdmin();
+                        notify('Sample catalog seeded to Firestore', 'success');
                       } finally {
                         setSeeding(false);
                       }
@@ -822,13 +726,9 @@ function AdminShell() {
                     onClick={async () => {
                       setSeeding(true);
                       try {
-                        if (isDemoPreview) {
-                          enterDemoPreview();
-                        } else {
-                          await seedHybridAccessDemoToFirestore(adminProfile!.uid);
-                          await loadAllAdmin();
-                          notify('Hybrid Access Demo (The Amber Signal + VAST Ads) seeded!', 'success');
-                        }
+                        await seedHybridAccessDemoToFirestore(adminProfile.uid);
+                        await loadAllAdmin();
+                        notify('Hybrid Access Demo (The Amber Signal + VAST Ads) seeded!', 'success');
                       } finally {
                         setSeeding(false);
                       }
@@ -1573,20 +1473,13 @@ function AdminShell() {
               plans={plans}
               vastAds={vastAds}
               adSettings={adSettings}
-              adminUid={adminProfile!.uid}
+              adminUid={adminProfile.uid}
               onSaveAdSettings={async (next) => {
-                if (!isDemoPreview) {
-                  await saveAdSettings(next, adminProfile!.uid);
-                }
+                await saveAdSettings(next, adminProfile.uid);
                 setAdSettings(next);
-                notify(
-                  isDemoPreview
-                    ? 'Ad-Unlock & Badge Settings updated (Studio Preview)'
-                    : 'Ad-Unlock & Badge Settings saved',
-                  'success'
-                );
+                notify('Ad-Unlock & Badge Settings saved', 'success');
               }}
-              onRefreshAll={isDemoPreview ? async () => {} : loadAllAdmin}
+              onRefreshAll={loadAllAdmin}
             />
           )}
 
@@ -1755,9 +1648,7 @@ function AdminShell() {
                           type="button"
                           onClick={async () => {
                             const updated = { ...b, isActive: !b.isActive };
-                            if (!isDemoPreview) {
-                              await saveBannerDoc(updated, adminProfile!.uid);
-                            }
+                            await saveBannerDoc(updated, adminProfile.uid);
                             setBanners((prev) =>
                               prev.map((x) => (x.id === b.id ? updated : x))
                             );
@@ -1769,9 +1660,7 @@ function AdminShell() {
                         <button
                           type="button"
                           onClick={async () => {
-                            if (!isDemoPreview) {
-                              await deleteBannerDoc(b.id, adminProfile!.uid);
-                            }
+                            await deleteBannerDoc(b.id, adminProfile.uid);
                             setBanners((prev) => prev.filter((x) => x.id !== b.id));
                             if (editingBannerId === b.id) {
                               setEditingBannerId(null);
@@ -1807,9 +1696,7 @@ function AdminShell() {
                     unlockAdIds:
                       bannerAdMode === 'specific_ad_ids' ? bannerUnlockAdIds : [],
                   };
-                  if (!isDemoPreview) {
-                    await saveBannerDoc(b, adminProfile!.uid);
-                  }
+                  await saveBannerDoc(b, adminProfile.uid);
                   setBanners((prev) =>
                     existing ? prev.map((x) => (x.id === b.id ? b : x)) : [...prev, b]
                   );
@@ -2414,9 +2301,7 @@ function AdminShell() {
         tmdbApiKey={settings.tmdbApiKey}
         onClose={() => setMovieModalOpen(false)}
         onSave={async (movie, isNew) => {
-          if (!isDemoPreview) {
-            await saveMovieDoc(movie, adminProfile!.uid, isNew);
-          }
+          await saveMovieDoc(movie, adminProfile.uid, isNew);
           setMovies((prev) =>
             isNew ? [movie, ...prev] : prev.map((x) => (x.id === movie.id ? movie : x))
           );
@@ -2434,9 +2319,7 @@ function AdminShell() {
         onCancel={() => setDeletingMovie(null)}
         onConfirm={async () => {
           if (!deletingMovie) return;
-          if (!isDemoPreview) {
-            await deleteMovieDoc(deletingMovie.id, adminProfile!.uid);
-          }
+          await deleteMovieDoc(deletingMovie.id, adminProfile.uid);
           setMovies((prev) => prev.filter((x) => x.id !== deletingMovie.id));
           notify(`Deleted "${deletingMovie.title}"`, 'success');
           setDeletingMovie(null);

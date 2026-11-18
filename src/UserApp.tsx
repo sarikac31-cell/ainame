@@ -461,7 +461,7 @@ function UserPanelShell() {
     (async () => {
       setCatalogLoading(true);
       try {
-        void testFirestoreConnection();
+        await testFirestoreConnection();
         const [siteCfg, catalog, pagesList, adsBundle] = await Promise.all([
           fetchSiteSettings(),
           fetchPublishedCatalog(60),

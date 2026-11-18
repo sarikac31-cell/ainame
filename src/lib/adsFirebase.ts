@@ -11,7 +11,7 @@ import {
   updateDoc,
   where,
   writeBatch,
-} from 'firebase/firestore/lite';
+} from 'firebase/firestore';
 import { deleteObject, ref } from 'firebase/storage';
 import {
   DEFAULT_AD_SETTINGS,
