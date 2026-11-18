@@ -1,0 +1,489 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Registered platform user profile, role, plan, and status.",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "email": { "type": "string", "format": "email", "maxLength": 200 },
+        "photoURL": { "type": "string", "maxLength": 1000 },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "status": { "type": "string", "enum": ["active", "banned"] },
+        "plan": { "type": "string", "enum": ["free", "premium"] },
+        "subscriptionPlanId": { "type": "string", "maxLength": 128 },
+        "subscriptionPlanName": { "type": "string", "maxLength": 100 },
+        "planExpiresAt": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "lastLoginAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["displayName", "email", "role", "status", "plan", "createdAt"]
+    },
+    "Movie": {
+      "title": "Movie",
+      "description": "Movie or series catalog entry with metadata, sources, and flags.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "slug": { "type": "string", "minLength": 1, "maxLength": 180, "pattern": "^[a-z0-9-]+$" },
+        "type": { "type": "string", "enum": ["movie", "series"] },
+        "description": { "type": "string", "maxLength": 4000 },
+        "releaseYear": { "type": "number" },
+        "duration": { "type": "number" },
+        "rating": { "type": "number" },
+        "ageRating": { "type": "string", "enum": ["G", "PG", "PG-13", "R", "TV-MA"] },
+        "language": { "type": "string", "maxLength": 60 },
+        "country": { "type": "string", "maxLength": 80 },
+        "genres": { "type": "array" },
+        "cast": { "type": "array" },
+        "director": { "type": "string", "maxLength": 120 },
+        "tags": { "type": "array" },
+        "posterUrl": { "type": "string", "maxLength": 1500 },
+        "bannerUrl": { "type": "string", "maxLength": 1500 },
+        "trailerUrl": { "type": "string", "maxLength": 1500 },
+        "videoSources": { "type": "array" },
+        "subtitles": { "type": "array" },
+        "isFeatured": { "type": "boolean" },
+        "isTrending": { "type": "boolean" },
+        "isPremium": { "type": "boolean" },
+        "requiresSignIn": { "type": "boolean" },
+        "requiredPlanId": { "type": "string", "maxLength": 128 },
+        "requiredPlanName": { "type": "string", "maxLength": 100 },
+        "access": { "type": "object" },
+        "seasonAccess": { "type": "object" },
+        "status": { "type": "string", "enum": ["published", "draft"] },
+        "views": { "type": "number" },
+        "likesCount": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "slug", "type", "status", "views", "likesCount"]
+    },
+    "Episode": {
+      "title": "Episode",
+      "description": "Series episode under a season subcollection.",
+      "type": "object",
+      "properties": {
+        "number": { "type": "number" },
+        "seasonNumber": { "type": "number" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "description": { "type": "string", "maxLength": 2000 },
+        "duration": { "type": "number" },
+        "thumbnailUrl": { "type": "string", "maxLength": 1500 },
+        "videoSources": { "type": "array" },
+        "subtitles": { "type": "array" },
+        "access": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["number", "title", "duration"]
+    },
+    "Genre": {
+      "title": "Genre",
+      "description": "Catalog genre with display order.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "slug": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "order": { "type": "number" }
+      },
+      "required": ["name", "slug", "order"]
+    },
+    "Banner": {
+      "title": "Banner",
+      "description": "Hero carousel banner linked to a title with optional rewarded VAST ad overrides.",
+      "type": "object",
+      "properties": {
+        "movieId": { "type": "string", "maxLength": 128 },
+        "imageUrl": { "type": "string", "maxLength": 1500 },
+        "order": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "adSelectionMode": { "type": "string", "enum": ["inherit", "specific_ad_ids"] },
+        "unlockAdIds": { "type": "array" }
+      },
+      "required": ["movieId", "imageUrl", "order", "isActive"]
+    },
+    "WatchlistItem": {
+      "title": "WatchlistItem",
+      "description": "User saved title in watchlist.",
+      "type": "object",
+      "properties": {
+        "movieId": { "type": "string", "maxLength": 128 },
+        "addedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["movieId", "addedAt"]
+    },
+    "WatchHistoryItem": {
+      "title": "WatchHistoryItem",
+      "description": "User playback resume state.",
+      "type": "object",
+      "properties": {
+        "movieId": { "type": "string", "maxLength": 128 },
+        "progressSeconds": { "type": "number" },
+        "durationSeconds": { "type": "number" },
+        "seasonId": { "type": "string", "maxLength": 128 },
+        "episodeId": { "type": "string", "maxLength": 128 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["movieId", "progressSeconds", "durationSeconds", "updatedAt"]
+    },
+    "RatingItem": {
+      "title": "RatingItem",
+      "description": "User 1-5 star rating for a title.",
+      "type": "object",
+      "properties": {
+        "value": { "type": "number" }
+      },
+      "required": ["value"]
+    },
+    "LikeItem": {
+      "title": "LikeItem",
+      "description": "User like marker for a title.",
+      "type": "object",
+      "properties": {
+        "movieId": { "type": "string", "maxLength": 128 },
+        "addedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["movieId", "addedAt"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "User review or discussion comment on a title.",
+      "type": "object",
+      "properties": {
+        "movieId": { "type": "string", "maxLength": 128 },
+        "uid": { "type": "string", "maxLength": 128 },
+        "userName": { "type": "string", "maxLength": 100 },
+        "userPhoto": { "type": "string", "maxLength": 1000 },
+        "text": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "isHidden": { "type": "boolean" }
+      },
+      "required": ["movieId", "uid", "userName", "text", "createdAt", "isHidden"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "User-submitted issue report for a title.",
+      "type": "object",
+      "properties": {
+        "movieId": { "type": "string", "maxLength": 128 },
+        "uid": { "type": "string", "maxLength": 128 },
+        "type": { "type": "string", "enum": ["broken link", "wrong info", "other"] },
+        "message": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "status": { "type": "string", "enum": ["open", "resolved"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["movieId", "uid", "type", "message", "status", "createdAt"]
+    },
+    "SiteSettings": {
+      "title": "SiteSettings",
+      "description": "Global platform configuration, 11-tab site customization, branding, theme, layout, player, SEO, pages, and feature flags.",
+      "type": "object",
+      "properties": {
+        "siteName": { "type": "string", "maxLength": 80 },
+        "logoUrl": { "type": "string", "maxLength": 1500 },
+        "primaryColor": { "type": "string", "maxLength": 20 },
+        "announcement": { "type": "object" },
+        "maintenanceMode": { "type": "boolean" },
+        "allowRegistration": { "type": "boolean" },
+        "footerLinks": { "type": "array" },
+        "tmdbApiKey": { "type": "string", "maxLength": 200 },
+        "branding": { "type": "object" },
+        "theme": { "type": "object" },
+        "typography": { "type": "object" },
+        "shape": { "type": "object" },
+        "homeLayout": { "type": "object" },
+        "navigation": { "type": "object" },
+        "footer": { "type": "object" },
+        "popup": { "type": "object" },
+        "maintenance": { "type": "object" },
+        "cookieConsent": { "type": "object" },
+        "player": { "type": "object" },
+        "seo": { "type": "object" },
+        "customCode": { "type": "object" },
+        "ads": { "type": "object" },
+        "i18n": { "type": "object" },
+        "featureFlags": { "type": "object" }
+      },
+      "required": ["siteName", "primaryColor", "maintenanceMode", "allowRegistration"]
+    },
+    "CustomPage": {
+      "title": "CustomPage",
+      "description": "Custom static/informational page created via rich-text editor.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "slug": { "type": "string", "minLength": 1, "maxLength": 80, "pattern": "^[a-z0-9-]+$" },
+        "contentHtml": { "type": "string", "maxLength": 50000 },
+        "showContactForm": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["published", "draft"] },
+        "showInFooter": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "slug", "contentHtml", "showContactForm", "status", "showInFooter", "updatedAt"]
+    },
+    "ContactMessage": {
+      "title": "ContactMessage",
+      "description": "Visitor contact form submission stored in Firestore for admin review.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "email": { "type": "string", "format": "email", "maxLength": 200 },
+        "subject": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "message": { "type": "string", "minLength": 1, "maxLength": 3000 },
+        "pageSlug": { "type": "string", "maxLength": 80 },
+        "status": { "type": "string", "enum": ["unread", "read", "archived"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "email", "subject", "message", "pageSlug", "status", "createdAt"]
+    },
+    "ActivityLog": {
+      "title": "ActivityLog",
+      "description": "Audit log of admin mutations.",
+      "type": "object",
+      "properties": {
+        "adminUid": { "type": "string", "maxLength": 128 },
+        "action": { "type": "string", "maxLength": 200 },
+        "targetId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["adminUid", "action", "targetId", "createdAt"]
+    },
+    "SubscriptionPlan": {
+      "title": "SubscriptionPlan",
+      "description": "Monthly subscription plan created by admin to gate access to assigned videos.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "slug": { "type": "string", "minLength": 1, "maxLength": 80, "pattern": "^[a-z0-9-]+$" },
+        "pricePerMonth": { "type": "number" },
+        "currency": { "type": "string", "maxLength": 10 },
+        "billingInterval": { "type": "string", "enum": ["monthly"] },
+        "description": { "type": "string", "maxLength": 500 },
+        "features": { "type": "array" },
+        "badgeColor": { "type": "string", "maxLength": 32 },
+        "isActive": { "type": "boolean" },
+        "order": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "slug", "pricePerMonth", "currency", "billingInterval", "isActive", "order"]
+    },
+    "CustomAd": {
+      "title": "CustomAd",
+      "description": "Self-hosted image advertisement for Home Page, Banner, or Video Player slots.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 2, "maxLength": 60 },
+        "type": { "type": "string", "enum": ["image"] },
+        "placement": { "type": "string", "enum": ["player", "home", "banner"] },
+        "imageUrl": { "type": "string", "maxLength": 1500 },
+        "mobileImageUrl": { "type": "string", "maxLength": 1500 },
+        "altText": { "type": "string", "maxLength": 200 },
+        "redirectUrl": { "type": "string", "maxLength": 1500 },
+        "openInNewTab": { "type": "boolean" },
+        "targetContentType": { "type": "string", "enum": ["all", "movie", "video", "tvshow"] },
+        "targetIds": { "type": "array" },
+        "startDate": { "type": "string", "maxLength": 32 },
+        "endDate": { "type": "string", "maxLength": 32 },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "priority": { "type": "number" },
+        "weight": { "type": "number" },
+        "dailyImpressionCap": { "type": "number" },
+        "devices": { "type": "array" },
+        "audience": { "type": "string", "enum": ["all", "free", "premium", "guest"] },
+        "impressions": { "type": "number" },
+        "clicks": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["name", "type", "placement", "imageUrl", "redirectUrl", "startDate", "endDate", "status", "priority", "impressions", "clicks"]
+    },
+    "VastAd": {
+      "title": "VastAd",
+      "description": "VAST 2.0/3.0/4.0 video advertisement served via Google IMA SDK or HTML5 fallback.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 2, "maxLength": 60 },
+        "type": { "type": "string", "enum": ["pre-roll", "mid-roll", "post-roll", "overlay"] },
+        "vastTagUrl": { "type": "string", "maxLength": 2000 },
+        "targetType": { "type": "string", "enum": ["movie", "video", "tvshow"] },
+        "targetIds": { "type": "array" },
+        "midRollAtSeconds": { "type": "array" },
+        "overlayStartSeconds": { "type": "number" },
+        "overlayDurationSeconds": { "type": "number" },
+        "skipAfterSeconds": { "type": "number" },
+        "startDate": { "type": "string", "maxLength": 32 },
+        "endDate": { "type": "string", "maxLength": 32 },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "priority": { "type": "number" },
+        "audience": { "type": "string", "enum": ["all", "free", "premium", "guest"] },
+        "devices": { "type": "array" },
+        "impressions": { "type": "number" },
+        "completions": { "type": "number" },
+        "skips": { "type": "number" },
+        "clicks": { "type": "number" },
+        "errors": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["name", "type", "vastTagUrl", "targetType", "startDate", "endDate", "status", "priority", "impressions", "completions", "skips", "clicks", "errors"]
+    },
+    "AdEvent": {
+      "title": "AdEvent",
+      "description": "Ad impression, click, complete, skip, and error analytics event.",
+      "type": "object",
+      "properties": {
+        "adId": { "type": "string", "maxLength": 128 },
+        "adKind": { "type": "string", "enum": ["custom", "vast"] },
+        "event": { "type": "string", "enum": ["impression", "click", "complete", "skip", "error"] },
+        "contentId": { "type": "string", "maxLength": 128 },
+        "contentType": { "type": "string", "maxLength": 32 },
+        "placement": { "type": "string", "maxLength": 32 },
+        "uid": { "type": "string", "maxLength": 128 },
+        "device": { "type": "string", "enum": ["desktop", "mobile", "tablet"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["adId", "adKind", "event", "placement", "device", "createdAt"]
+    },
+    "AdSettings": {
+      "title": "AdSettings",
+      "description": "Global advertising delivery controls, frequency caps, test mode, and hybrid ad-unlock/badge settings.",
+      "type": "object",
+      "properties": {
+        "adsEnabled": { "type": "boolean" },
+        "hideAdsForPremium": { "type": "boolean" },
+        "maxAdsPerSession": { "type": "number" },
+        "minSecondsBetweenVideoAds": { "type": "number" },
+        "adLabelText": { "type": "string", "maxLength": 24 },
+        "showAdLabel": { "type": "boolean" },
+        "testMode": { "type": "boolean" },
+        "defaultDailyCap": { "type": "number" },
+        "unlockSettings": { "type": "object" }
+      },
+      "required": ["adsEnabled", "hideAdsForPremium", "maxAdsPerSession", "minSecondsBetweenVideoAds", "adLabelText", "showAdLabel", "testMode", "defaultDailyCap"]
+    },
+    "AdUnlock": {
+      "title": "AdUnlock",
+      "description": "Rewarded ad unlock record granting temporary per-movie or per-episode playback access.",
+      "type": "object",
+      "properties": {
+        "contentId": { "type": "string", "maxLength": 128 },
+        "contentType": { "type": "string", "enum": ["movie", "episode"] },
+        "seriesId": { "type": "string", "maxLength": 128 },
+        "unlockedAt": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "maxLength": 64 },
+        "adId": { "type": "string", "maxLength": 128 },
+        "method": { "type": "string", "enum": ["rewarded_ad"] }
+      },
+      "required": ["contentId", "contentType", "unlockedAt", "adId", "method"]
+    },
+    "AccessEvent": {
+      "title": "AccessEvent",
+      "description": "Watch gate and rewarded ad-unlock funnel telemetry event.",
+      "type": "object",
+      "properties": {
+        "event": { "type": "string", "enum": ["gate_impression", "ad_unlock_start", "ad_unlock_complete", "ad_unlock_fail", "ad_unlock_cancel", "subscribe_cta_click", "rate_limit_hit"] },
+        "contentId": { "type": "string", "maxLength": 128 },
+        "contentType": { "type": "string", "enum": ["movie", "episode"] },
+        "seriesId": { "type": "string", "maxLength": 128 },
+        "adId": { "type": "string", "maxLength": 128 },
+        "uid": { "type": "string", "maxLength": 128 },
+        "device": { "type": "string", "enum": ["desktop", "mobile", "tablet"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["event", "contentId", "contentType", "device", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles, roles, plans, and ban state."
+    },
+    "/users/{uid}/watchlist/{movieId}": {
+      "schema": { "$ref": "#/entities/WatchlistItem" },
+      "description": "User personal watchlist."
+    },
+    "/users/{uid}/history/{movieId}": {
+      "schema": { "$ref": "#/entities/WatchHistoryItem" },
+      "description": "User playback history and resume timestamps."
+    },
+    "/users/{uid}/ratings/{movieId}": {
+      "schema": { "$ref": "#/entities/RatingItem" },
+      "description": "User star ratings."
+    },
+    "/users/{uid}/likes/{movieId}": {
+      "schema": { "$ref": "#/entities/LikeItem" },
+      "description": "User liked titles."
+    },
+    "/users/{uid}/adUnlocks/{contentId}": {
+      "schema": { "$ref": "#/entities/AdUnlock" },
+      "description": "Per-movie and per-episode rewarded ad unlock records."
+    },
+    "/movies/{movieId}": {
+      "schema": { "$ref": "#/entities/Movie" },
+      "description": "Published and draft movies and series."
+    },
+    "/series/{seriesId}/seasons/{seasonId}/episodes/{episodeId}": {
+      "schema": { "$ref": "#/entities/Episode" },
+      "description": "Episodes belonging to a series season."
+    },
+    "/genres/{genreId}": {
+      "schema": { "$ref": "#/entities/Genre" },
+      "description": "Genre taxonomy."
+    },
+    "/banners/{bannerId}": {
+      "schema": { "$ref": "#/entities/Banner" },
+      "description": "Featured hero carousel banners."
+    },
+    "/comments/{commentId}": {
+      "schema": { "$ref": "#/entities/Comment" },
+      "description": "Title comments and moderation state."
+    },
+    "/reports/{reportId}": {
+      "schema": { "$ref": "#/entities/Report" },
+      "description": "Broken link and metadata issue reports."
+    },
+    "/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/SiteSettings" },
+      "description": "Site-wide settings (site document)."
+    },
+    "/pages/{pageId}": {
+      "schema": { "$ref": "#/entities/CustomPage" },
+      "description": "Custom informational pages authored in Admin Studio."
+    },
+    "/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ContactMessage" },
+      "description": "Contact form messages submitted from custom pages."
+    },
+    "/activityLogs/{logId}": {
+      "schema": { "$ref": "#/entities/ActivityLog" },
+      "description": "Admin audit trail."
+    },
+    "/plans/{planId}": {
+      "schema": { "$ref": "#/entities/SubscriptionPlan" },
+      "description": "Monthly subscription plans defined by administrators."
+    },
+    "/customAds/{adId}": {
+      "schema": { "$ref": "#/entities/CustomAd" },
+      "description": "Self-hosted image ads for Home, Banner, and Player placements."
+    },
+    "/vastAds/{adId}": {
+      "schema": { "$ref": "#/entities/VastAd" },
+      "description": "VAST video and overlay ad tags."
+    },
+    "/adEvents/{eventId}": {
+      "schema": { "$ref": "#/entities/AdEvent" },
+      "description": "Granular ad analytics events."
+    },
+    "/adSettings/{settingId}": {
+      "schema": { "$ref": "#/entities/AdSettings" },
+      "description": "Global advertising delivery and hybrid access unlock settings."
+    },
+    "/accessEvents/{eventId}": {
+      "schema": { "$ref": "#/entities/AccessEvent" },
+      "description": "Watch gate impressions, rewarded ad unlock funnel, and subscribe CTA analytics."
+    }
+  }
+}

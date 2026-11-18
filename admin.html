@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>KinoVault Admin Console</title>
+    <meta name="description" content="KinoVault administrative console for catalog, users, banners, moderation, and platform settings." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <script>
+      try {
+        var saved = localStorage.getItem('kv_theme');
+        if (saved === 'light') {
+          document.documentElement.classList.remove('dark');
+        } else {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) {}
+    </script>
+  </head>
+  <body class="bg-zinc-50 text-zinc-900 dark:bg-[#0b0b0f] dark:text-zinc-100 antialiased selection:bg-[var(--kv-accent,#e50914)] selection:text-white">
+    <div id="admin-root"></div>
+    <script type="module" src="/src/admin-main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,661 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Primitive Helpers ---
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isBootstrappedAdmin() {
+      return isVerifiedUser() && (
+        request.auth.token.email == 'krushnachaware84@gmail.com' ||
+        request.auth.token.email == 'sarikac31@gmail.com'
+      );
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || (
+        isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    function isNotBanned() {
+      return isSignedIn() && (
+        !exists(/databases/$(database)/documents/users/$(request.auth.uid)) ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status != 'banned'
+      );
+    }
+
+    // --- Entity Validators ---
+    function isValidUserDoc(data) {
+      return data.keys().hasAll(['displayName', 'email', 'role', 'status', 'plan']) &&
+        data.keys().hasOnly([
+          'displayName', 'email', 'photoURL', 'role', 'status', 'plan',
+          'subscriptionPlanId', 'subscriptionPlanName', 'planExpiresAt',
+          'createdAt', 'lastLoginAt'
+        ]) &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 200 &&
+        data.role in ['user', 'admin'] &&
+        data.status in ['active', 'banned'] &&
+        data.plan in ['free', 'premium'] &&
+        (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 1000)) &&
+        (!('subscriptionPlanId' in data) || data.subscriptionPlanId == null || (data.subscriptionPlanId is string && data.subscriptionPlanId.size() <= 128)) &&
+        (!('subscriptionPlanName' in data) || data.subscriptionPlanName == null || (data.subscriptionPlanName is string && data.subscriptionPlanName.size() <= 100)) &&
+        (!('planExpiresAt' in data) || data.planExpiresAt == null || (data.planExpiresAt is string && data.planExpiresAt.size() <= 64));
+    }
+
+    function isValidAccessRule(rule) {
+      return rule is map &&
+        rule.keys().hasAll(['mode']) &&
+        rule.keys().hasOnly([
+          'mode', 'planId', 'planName', 'requiresSignIn', 'adUnlockAllowed',
+          'adsRequired', 'adSource', 'adIds', 'unlockValidityHours', 'unlockValidityMode'
+        ]) &&
+        rule.mode in ['free', 'subscription_only', 'ad_unlock_only', 'subscription_or_ad', 'inherit'] &&
+        (!('planId' in rule) || rule.planId == null || (rule.planId is string && rule.planId.size() <= 128)) &&
+        (!('planName' in rule) || rule.planName == null || (rule.planName is string && rule.planName.size() <= 100)) &&
+        (!('requiresSignIn' in rule) || rule.requiresSignIn is bool) &&
+        (!('adUnlockAllowed' in rule) || rule.adUnlockAllowed is bool) &&
+        (!('adsRequired' in rule) || (rule.adsRequired is number && rule.adsRequired >= 1 && rule.adsRequired <= 3)) &&
+        (!('adSource' in rule) || rule.adSource in ['any_vast', 'specific_ad_ids']) &&
+        (!('adIds' in rule) || (rule.adIds is list && rule.adIds.size() <= 20)) &&
+        (!('unlockValidityHours' in rule) || rule.unlockValidityHours == null || (rule.unlockValidityHours is number && rule.unlockValidityHours >= 1 && rule.unlockValidityHours <= 720)) &&
+        (!('unlockValidityMode' in rule) || rule.unlockValidityMode == null || rule.unlockValidityMode in ['episode_hours', 'session']);
+    }
+
+    function isValidMovieDoc(data) {
+      return data.keys().hasAll(['title', 'slug', 'type', 'status', 'views', 'likesCount']) &&
+        data.keys().hasOnly([
+          'title', 'slug', 'type', 'description', 'releaseYear', 'duration', 'rating',
+          'ageRating', 'language', 'country', 'genres', 'cast', 'director', 'tags',
+          'posterUrl', 'bannerUrl', 'trailerUrl', 'videoSources', 'subtitles',
+          'isFeatured', 'isTrending', 'isPremium', 'requiresSignIn', 'requiredPlanId', 'requiredPlanName',
+          'access', 'seasonAccess',
+          'status', 'views', 'likesCount', 'createdAt', 'updatedAt'
+        ]) &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 180 &&
+        data.slug is string && data.slug.size() >= 1 && data.slug.size() <= 180 &&
+        data.type in ['movie', 'series'] &&
+        data.status in ['published', 'draft'] &&
+        data.views is number && data.views >= 0 &&
+        data.likesCount is number && data.likesCount >= 0 &&
+        (!('description' in data) || (data.description is string && data.description.size() <= 4000)) &&
+        (!('releaseYear' in data) || (data.releaseYear is number && data.releaseYear >= 1880 && data.releaseYear <= 2100)) &&
+        (!('duration' in data) || (data.duration is number && data.duration >= 0 && data.duration <= 2000)) &&
+        (!('rating' in data) || (data.rating is number && data.rating >= 0 && data.rating <= 10)) &&
+        (!('requiresSignIn' in data) || data.requiresSignIn is bool) &&
+        (!('requiredPlanId' in data) || data.requiredPlanId == null || (data.requiredPlanId is string && data.requiredPlanId.size() <= 128)) &&
+        (!('requiredPlanName' in data) || data.requiredPlanName == null || (data.requiredPlanName is string && data.requiredPlanName.size() <= 100)) &&
+        (!('access' in data) || data.access == null || isValidAccessRule(data.access)) &&
+        (!('seasonAccess' in data) || data.seasonAccess == null || data.seasonAccess is map) &&
+        (!('genres' in data) || (data.genres is list && data.genres.size() <= 20)) &&
+        (!('cast' in data) || (data.cast is list && data.cast.size() <= 40)) &&
+        (!('tags' in data) || (data.tags is list && data.tags.size() <= 30)) &&
+        (!('videoSources' in data) || (data.videoSources is list && data.videoSources.size() <= 12)) &&
+        (!('subtitles' in data) || (data.subtitles is list && data.subtitles.size() <= 20));
+    }
+
+    function isValidPlanDoc(data) {
+      return data.keys().hasAll(['name', 'slug', 'pricePerMonth', 'currency', 'billingInterval', 'isActive', 'order']) &&
+        data.keys().hasOnly([
+          'name', 'slug', 'pricePerMonth', 'currency', 'billingInterval',
+          'description', 'features', 'badgeColor', 'isActive', 'order',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 80 &&
+        data.slug is string && data.slug.size() >= 1 && data.slug.size() <= 80 &&
+        data.pricePerMonth is number && data.pricePerMonth >= 0 && data.pricePerMonth <= 10000 &&
+        data.currency is string && data.currency.size() >= 1 && data.currency.size() <= 10 &&
+        data.billingInterval == 'monthly' &&
+        (!('description' in data) || (data.description is string && data.description.size() <= 500)) &&
+        (!('features' in data) || (data.features is list && data.features.size() <= 12 && (data.features.size() == 0 || data.features[0] is string))) &&
+        (!('badgeColor' in data) || (data.badgeColor is string && data.badgeColor.size() <= 32)) &&
+        data.isActive is bool &&
+        data.order is number && data.order >= 0;
+    }
+
+    function isValidEpisodeDoc(data) {
+      return data.keys().hasAll(['number', 'title', 'duration']) &&
+        data.keys().hasOnly(['number', 'title', 'description', 'duration', 'thumbnailUrl', 'videoSources', 'subtitles', 'access', 'createdAt', 'seasonNumber']) &&
+        data.number is number && data.number >= 1 && data.number <= 1000 &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 180 &&
+        data.duration is number && data.duration >= 0 && data.duration <= 1000 &&
+        (!('description' in data) || (data.description is string && data.description.size() <= 2000)) &&
+        (!('thumbnailUrl' in data) || (data.thumbnailUrl is string && data.thumbnailUrl.size() <= 1500)) &&
+        (!('videoSources' in data) || (data.videoSources is list && data.videoSources.size() <= 12)) &&
+        (!('subtitles' in data) || (data.subtitles is list && data.subtitles.size() <= 20)) &&
+        (!('access' in data) || data.access == null || isValidAccessRule(data.access));
+    }
+
+    function isValidGenreDoc(data) {
+      return data.keys().hasAll(['name', 'slug', 'order']) &&
+        data.keys().hasOnly(['name', 'slug', 'order']) &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 60 &&
+        data.slug is string && data.slug.size() >= 1 && data.slug.size() <= 60 &&
+        data.order is number && data.order >= 0;
+    }
+
+    function isValidBannerDoc(data) {
+      return data.keys().hasAll(['movieId', 'imageUrl', 'order', 'isActive']) &&
+        data.keys().hasOnly(['movieId', 'imageUrl', 'order', 'isActive', 'adSelectionMode', 'unlockAdIds']) &&
+        data.movieId is string && data.movieId.size() >= 1 && data.movieId.size() <= 128 &&
+        data.imageUrl is string && data.imageUrl.size() >= 1 && data.imageUrl.size() <= 1500 &&
+        data.order is number && data.order >= 0 &&
+        data.isActive is bool &&
+        (!('adSelectionMode' in data) || data.adSelectionMode in ['inherit', 'specific_ad_ids']) &&
+        (!('unlockAdIds' in data) || (data.unlockAdIds is list && data.unlockAdIds.size() <= 20));
+    }
+
+    function isValidCommentDoc(data) {
+      return data.keys().hasAll(['movieId', 'uid', 'userName', 'text', 'createdAt', 'isHidden']) &&
+        data.keys().hasOnly(['movieId', 'uid', 'userName', 'userPhoto', 'text', 'createdAt', 'isHidden']) &&
+        data.movieId is string && data.movieId.size() >= 1 && data.movieId.size() <= 128 &&
+        data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+        data.userName is string && data.userName.size() >= 1 && data.userName.size() <= 100 &&
+        (!('userPhoto' in data) || (data.userPhoto is string && data.userPhoto.size() <= 1000)) &&
+        data.text is string && data.text.size() >= 1 && data.text.size() <= 1000 &&
+        data.isHidden is bool;
+    }
+
+    function isValidReportDoc(data) {
+      return data.keys().hasAll(['movieId', 'uid', 'type', 'message', 'status', 'createdAt']) &&
+        data.keys().hasOnly(['movieId', 'uid', 'type', 'message', 'status', 'createdAt']) &&
+        data.movieId is string && data.movieId.size() >= 1 && data.movieId.size() <= 128 &&
+        data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+        data.type in ['broken link', 'wrong info', 'other'] &&
+        data.message is string && data.message.size() >= 1 && data.message.size() <= 1000 &&
+        data.status in ['open', 'resolved'];
+    }
+
+    function isValidSiteSettingsDoc(data) {
+      return data.keys().hasAll(['siteName', 'primaryColor', 'maintenanceMode', 'allowRegistration']) &&
+        data.keys().hasOnly([
+          'siteName', 'logoUrl', 'primaryColor', 'announcement', 'maintenanceMode',
+          'allowRegistration', 'footerLinks', 'tmdbApiKey',
+          'branding', 'theme', 'typography', 'shape', 'homeLayout',
+          'navigation', 'footer', 'popup', 'maintenance', 'cookieConsent',
+          'player', 'seo', 'customCode', 'ads', 'i18n', 'featureFlags'
+        ]) &&
+        data.siteName is string && data.siteName.size() >= 1 && data.siteName.size() <= 80 &&
+        data.primaryColor is string && data.primaryColor.size() >= 4 && data.primaryColor.size() <= 20 &&
+        data.maintenanceMode is bool &&
+        data.allowRegistration is bool &&
+        (!('logoUrl' in data) || (data.logoUrl is string && data.logoUrl.size() <= 1500)) &&
+        (!('tmdbApiKey' in data) || (data.tmdbApiKey is string && data.tmdbApiKey.size() <= 200)) &&
+        (!('branding' in data) || data.branding is map) &&
+        (!('theme' in data) || data.theme is map) &&
+        (!('typography' in data) || data.typography is map) &&
+        (!('shape' in data) || data.shape is map) &&
+        (!('homeLayout' in data) || data.homeLayout is map) &&
+        (!('navigation' in data) || data.navigation is map) &&
+        (!('footer' in data) || data.footer is map) &&
+        (!('popup' in data) || data.popup is map) &&
+        (!('maintenance' in data) || data.maintenance is map) &&
+        (!('cookieConsent' in data) || data.cookieConsent is map) &&
+        (!('player' in data) || data.player is map) &&
+        (!('seo' in data) || data.seo is map) &&
+        (!('customCode' in data) || data.customCode is map) &&
+        (!('ads' in data) || data.ads is map) &&
+        (!('i18n' in data) || data.i18n is map) &&
+        (!('featureFlags' in data) || data.featureFlags is map);
+    }
+
+    function isValidCustomPageDoc(data) {
+      return data.keys().hasAll(['title', 'slug', 'contentHtml', 'showContactForm', 'status', 'showInFooter', 'updatedAt']) &&
+        data.keys().hasOnly(['title', 'slug', 'contentHtml', 'showContactForm', 'status', 'showInFooter', 'updatedAt']) &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+        data.slug is string && data.slug.size() >= 1 && data.slug.size() <= 80 &&
+        data.contentHtml is string && data.contentHtml.size() <= 50000 &&
+        data.showContactForm is bool &&
+        data.status in ['published', 'draft'] &&
+        data.showInFooter is bool &&
+        data.updatedAt is string && data.updatedAt.size() <= 64;
+    }
+
+    function isValidContactMessageDoc(data) {
+      return data.keys().hasAll(['name', 'email', 'subject', 'message', 'pageSlug', 'status', 'createdAt']) &&
+        data.keys().hasOnly(['name', 'email', 'subject', 'message', 'pageSlug', 'status', 'createdAt']) &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 200 &&
+        data.subject is string && data.subject.size() >= 1 && data.subject.size() <= 160 &&
+        data.message is string && data.message.size() >= 1 && data.message.size() <= 3000 &&
+        data.pageSlug is string && data.pageSlug.size() >= 1 && data.pageSlug.size() <= 80 &&
+        data.status in ['unread', 'read', 'archived'] &&
+        data.createdAt is string && data.createdAt.size() <= 64;
+    }
+
+    function isValidActivityLogDoc(data) {
+      return data.keys().hasAll(['adminUid', 'action', 'targetId', 'createdAt']) &&
+        data.keys().hasOnly(['adminUid', 'action', 'targetId', 'createdAt']) &&
+        data.adminUid is string && data.adminUid.size() >= 1 && data.adminUid.size() <= 128 &&
+        data.action is string && data.action.size() >= 1 && data.action.size() <= 200 &&
+        data.targetId is string && data.targetId.size() >= 1 && data.targetId.size() <= 128;
+    }
+
+    function isValidCustomAdDoc(data) {
+      return data.keys().hasAll([
+          'name', 'type', 'placement', 'imageUrl', 'redirectUrl',
+          'startDate', 'endDate', 'status', 'priority', 'impressions', 'clicks'
+        ]) &&
+        data.keys().hasOnly([
+          'name', 'type', 'placement', 'imageUrl', 'mobileImageUrl', 'altText',
+          'redirectUrl', 'openInNewTab', 'targetContentType', 'targetIds',
+          'startDate', 'endDate', 'status', 'priority', 'weight', 'dailyImpressionCap',
+          'devices', 'audience', 'impressions', 'clicks', 'createdAt', 'updatedAt', 'createdBy'
+        ]) &&
+        data.name is string && data.name.size() >= 2 && data.name.size() <= 60 &&
+        data.type == 'image' &&
+        data.placement in ['player', 'home', 'banner'] &&
+        data.imageUrl is string && data.imageUrl.size() >= 1 && data.imageUrl.size() <= 1500 &&
+        (!('mobileImageUrl' in data) || (data.mobileImageUrl is string && data.mobileImageUrl.size() <= 1500)) &&
+        (!('altText' in data) || (data.altText is string && data.altText.size() <= 200)) &&
+        data.redirectUrl is string && data.redirectUrl.size() >= 1 && data.redirectUrl.size() <= 1500 &&
+        (!('openInNewTab' in data) || data.openInNewTab is bool) &&
+        (!('targetContentType' in data) || data.targetContentType in ['all', 'movie', 'video', 'tvshow']) &&
+        (!('targetIds' in data) || (data.targetIds is list && data.targetIds.size() <= 100)) &&
+        data.startDate is string && data.startDate.size() >= 8 && data.startDate.size() <= 32 &&
+        data.endDate is string && data.endDate.size() >= 8 && data.endDate.size() <= 32 &&
+        data.status in ['active', 'inactive'] &&
+        data.priority is number && data.priority >= 1 && data.priority <= 10 &&
+        (!('weight' in data) || (data.weight is number && data.weight >= 1 && data.weight <= 100)) &&
+        (!('dailyImpressionCap' in data) || (data.dailyImpressionCap is number && data.dailyImpressionCap >= 0)) &&
+        (!('devices' in data) || (data.devices is list && data.devices.size() <= 5)) &&
+        (!('audience' in data) || data.audience in ['all', 'free', 'premium', 'guest']) &&
+        data.impressions is number && data.impressions >= 0 &&
+        data.clicks is number && data.clicks >= 0;
+    }
+
+    function isValidVastAdDoc(data) {
+      return data.keys().hasAll([
+          'name', 'type', 'vastTagUrl', 'targetType', 'startDate', 'endDate',
+          'status', 'priority', 'impressions', 'completions', 'skips', 'clicks', 'errors'
+        ]) &&
+        data.keys().hasOnly([
+          'name', 'type', 'vastTagUrl', 'targetType', 'targetIds',
+          'midRollAtSeconds', 'overlayStartSeconds', 'overlayDurationSeconds',
+          'skipAfterSeconds', 'startDate', 'endDate', 'status', 'priority',
+          'audience', 'devices', 'impressions', 'completions', 'skips', 'clicks', 'errors',
+          'createdAt', 'updatedAt', 'createdBy'
+        ]) &&
+        data.name is string && data.name.size() >= 2 && data.name.size() <= 60 &&
+        data.type in ['pre-roll', 'mid-roll', 'post-roll', 'overlay'] &&
+        data.vastTagUrl is string && data.vastTagUrl.size() >= 1 && data.vastTagUrl.size() <= 2000 &&
+        data.targetType in ['movie', 'video', 'tvshow'] &&
+        (!('targetIds' in data) || (data.targetIds is list && data.targetIds.size() <= 100)) &&
+        (!('midRollAtSeconds' in data) || (data.midRollAtSeconds is list && data.midRollAtSeconds.size() <= 20)) &&
+        (!('overlayStartSeconds' in data) || (data.overlayStartSeconds is number && data.overlayStartSeconds >= 0)) &&
+        (!('overlayDurationSeconds' in data) || (data.overlayDurationSeconds is number && data.overlayDurationSeconds >= 1 && data.overlayDurationSeconds <= 120)) &&
+        (!('skipAfterSeconds' in data) || (data.skipAfterSeconds is number && data.skipAfterSeconds >= 0 && data.skipAfterSeconds <= 60)) &&
+        data.startDate is string && data.startDate.size() >= 8 && data.startDate.size() <= 32 &&
+        data.endDate is string && data.endDate.size() >= 8 && data.endDate.size() <= 32 &&
+        data.status in ['active', 'inactive'] &&
+        data.priority is number && data.priority >= 1 && data.priority <= 10 &&
+        (!('audience' in data) || data.audience in ['all', 'free', 'premium', 'guest']) &&
+        (!('devices' in data) || (data.devices is list && data.devices.size() <= 5)) &&
+        data.impressions is number && data.impressions >= 0 &&
+        data.completions is number && data.completions >= 0 &&
+        data.skips is number && data.skips >= 0 &&
+        data.clicks is number && data.clicks >= 0 &&
+        data.errors is number && data.errors >= 0;
+    }
+
+    function isValidAdEventDoc(data) {
+      return data.keys().hasAll(['adId', 'adKind', 'event', 'placement', 'device', 'createdAt']) &&
+        data.keys().hasOnly(['adId', 'adKind', 'event', 'contentId', 'contentType', 'placement', 'uid', 'device', 'createdAt']) &&
+        data.adId is string && data.adId.size() >= 1 && data.adId.size() <= 128 &&
+        data.adKind in ['custom', 'vast'] &&
+        data.event in ['impression', 'click', 'complete', 'skip', 'error'] &&
+        (!('contentId' in data) || (data.contentId is string && data.contentId.size() <= 128)) &&
+        (!('contentType' in data) || (data.contentType is string && data.contentType.size() <= 32)) &&
+        data.placement is string && data.placement.size() >= 1 && data.placement.size() <= 32 &&
+        (!('uid' in data) || (data.uid is string && data.uid.size() <= 128)) &&
+        data.device in ['desktop', 'mobile', 'tablet'] &&
+        data.createdAt is string && data.createdAt.size() <= 64;
+    }
+
+    function isValidAdSettingsDoc(data) {
+      return data.keys().hasAll([
+          'adsEnabled', 'hideAdsForPremium', 'maxAdsPerSession', 'minSecondsBetweenVideoAds',
+          'adLabelText', 'showAdLabel', 'testMode', 'defaultDailyCap'
+        ]) &&
+        data.keys().hasOnly([
+          'adsEnabled', 'hideAdsForPremium', 'maxAdsPerSession', 'minSecondsBetweenVideoAds',
+          'adLabelText', 'showAdLabel', 'testMode', 'defaultDailyCap', 'unlockSettings'
+        ]) &&
+        data.adsEnabled is bool &&
+        data.hideAdsForPremium is bool &&
+        data.maxAdsPerSession is number && data.maxAdsPerSession >= 0 && data.maxAdsPerSession <= 100 &&
+        data.minSecondsBetweenVideoAds is number && data.minSecondsBetweenVideoAds >= 0 && data.minSecondsBetweenVideoAds <= 7200 &&
+        data.adLabelText is string && data.adLabelText.size() >= 1 && data.adLabelText.size() <= 24 &&
+        data.showAdLabel is bool &&
+        data.testMode is bool &&
+        data.defaultDailyCap is number && data.defaultDailyCap >= 0 &&
+        (!('unlockSettings' in data) || data.unlockSettings == null || data.unlockSettings is map);
+    }
+
+    function isValidAdUnlockDoc(data) {
+      return data.keys().hasAll(['contentId', 'contentType', 'unlockedAt', 'adId', 'method']) &&
+        data.keys().hasOnly(['contentId', 'contentType', 'seriesId', 'unlockedAt', 'expiresAt', 'adId', 'method']) &&
+        data.contentId is string && data.contentId.size() >= 1 && data.contentId.size() <= 128 &&
+        data.contentType in ['movie', 'episode'] &&
+        (!('seriesId' in data) || data.seriesId == null || (data.seriesId is string && data.seriesId.size() <= 128)) &&
+        data.unlockedAt is string && data.unlockedAt.size() <= 64 &&
+        (!('expiresAt' in data) || data.expiresAt == null || (data.expiresAt is string && data.expiresAt.size() <= 64)) &&
+        data.adId is string && data.adId.size() >= 1 && data.adId.size() <= 128 &&
+        data.method == 'rewarded_ad';
+    }
+
+    function isValidAccessEventDoc(data) {
+      return data.keys().hasAll(['event', 'contentId', 'contentType', 'device', 'createdAt']) &&
+        data.keys().hasOnly(['event', 'contentId', 'contentType', 'seriesId', 'adId', 'uid', 'device', 'createdAt']) &&
+        data.event in ['gate_impression', 'ad_unlock_start', 'ad_unlock_complete', 'ad_unlock_fail', 'ad_unlock_cancel', 'subscribe_cta_click', 'rate_limit_hit'] &&
+        data.contentId is string && data.contentId.size() >= 1 && data.contentId.size() <= 128 &&
+        data.contentType in ['movie', 'episode'] &&
+        (!('seriesId' in data) || data.seriesId == null || (data.seriesId is string && data.seriesId.size() <= 128)) &&
+        (!('adId' in data) || data.adId == null || (data.adId is string && data.adId.size() <= 128)) &&
+        (!('uid' in data) || data.uid == null || (data.uid is string && data.uid.size() <= 128)) &&
+        data.device in ['desktop', 'mobile', 'tablet'] &&
+        data.createdAt is string && data.createdAt.size() <= 64;
+    }
+
+    // --- Collection Rules ---
+
+    // Users collection (PII isolated to owner or admin)
+    match /users/{uid} {
+      allow get: if isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isValidId(uid) && isSignedIn() && isValidUserDoc(incoming()) && (
+        isAdmin() || (
+          isOwner(uid) &&
+          incoming().role == 'user' &&
+          incoming().status == 'active' &&
+          incoming().plan == 'free'
+        )
+      );
+      allow update: if isValidId(uid) && isSignedIn() && isValidUserDoc(incoming()) && (
+        isAdmin() || (
+          isOwner(uid) &&
+          isNotBanned() &&
+          incoming().role == existing().role &&
+          incoming().status == existing().status && (
+            // Action: Update profile details
+            (
+              incoming().plan == existing().plan &&
+              incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'lastLoginAt'])
+            ) ||
+            // Action: Subscribe to an active admin-created monthly plan
+            (
+              incoming().diff(existing()).affectedKeys().hasOnly(['plan', 'subscriptionPlanId', 'subscriptionPlanName', 'planExpiresAt', 'lastLoginAt']) &&
+              incoming().plan == 'premium' &&
+              incoming().subscriptionPlanId is string &&
+              isValidId(incoming().subscriptionPlanId) &&
+              exists(/databases/$(database)/documents/plans/$(incoming().subscriptionPlanId)) &&
+              get(/databases/$(database)/documents/plans/$(incoming().subscriptionPlanId)).data.isActive == true &&
+              incoming().subscriptionPlanName == get(/databases/$(database)/documents/plans/$(incoming().subscriptionPlanId)).data.name
+            ) ||
+            // Action: Cancel active subscription back to free
+            (
+              incoming().diff(existing()).affectedKeys().hasOnly(['plan', 'subscriptionPlanId', 'subscriptionPlanName', 'planExpiresAt', 'lastLoginAt']) &&
+              incoming().plan == 'free' &&
+              incoming().subscriptionPlanId == null &&
+              incoming().subscriptionPlanName == null
+            )
+          )
+        )
+      );
+      allow delete: if isValidId(uid) && (isOwner(uid) || isAdmin());
+
+      match /watchlist/{movieId} {
+        allow read: if isOwner(uid) || isAdmin();
+        allow create, update: if isValidId(movieId) && isOwner(uid) && isNotBanned() &&
+          incoming().keys().hasAll(['movieId', 'addedAt']) &&
+          incoming().keys().hasOnly(['movieId', 'addedAt']) &&
+          incoming().movieId == movieId;
+        allow delete: if isValidId(movieId) && (isOwner(uid) || isAdmin());
+      }
+
+      match /history/{movieId} {
+        allow read: if isOwner(uid) || isAdmin();
+        allow create, update: if isValidId(movieId) && isOwner(uid) && isNotBanned() &&
+          incoming().keys().hasAll(['movieId', 'progressSeconds', 'durationSeconds', 'updatedAt']) &&
+          incoming().keys().hasOnly(['movieId', 'progressSeconds', 'durationSeconds', 'seasonId', 'episodeId', 'updatedAt']) &&
+          incoming().movieId == movieId &&
+          incoming().progressSeconds is number && incoming().progressSeconds >= 0 &&
+          incoming().durationSeconds is number && incoming().durationSeconds >= 0;
+        allow delete: if isValidId(movieId) && (isOwner(uid) || isAdmin());
+      }
+
+      match /ratings/{movieId} {
+        allow read: if isOwner(uid) || isAdmin();
+        allow create, update: if isValidId(movieId) && isOwner(uid) && isNotBanned() &&
+          incoming().keys().hasAll(['value']) &&
+          incoming().keys().hasOnly(['value']) &&
+          incoming().value is number && incoming().value >= 1 && incoming().value <= 5;
+        allow delete: if isValidId(movieId) && (isOwner(uid) || isAdmin());
+      }
+
+      match /likes/{movieId} {
+        allow read: if isOwner(uid) || isAdmin();
+        allow create, update: if isValidId(movieId) && isOwner(uid) && isNotBanned() &&
+          incoming().keys().hasAll(['movieId', 'addedAt']) &&
+          incoming().keys().hasOnly(['movieId', 'addedAt']) &&
+          incoming().movieId == movieId;
+        allow delete: if isValidId(movieId) && (isOwner(uid) || isAdmin());
+      }
+
+      match /adUnlocks/{contentId} {
+        allow read: if isOwner(uid) || isAdmin();
+        allow create, update: if isValidId(contentId) && isOwner(uid) && isNotBanned() &&
+          isValidAdUnlockDoc(incoming()) &&
+          incoming().contentId == contentId;
+        allow delete: if isValidId(contentId) && (isOwner(uid) || isAdmin());
+      }
+    }
+
+    // Movies & Series catalog
+    match /movies/{movieId} {
+      allow get: if isValidId(movieId) && (existing().status == 'published' || isAdmin());
+      allow list: if resource.data.status == 'published' || isAdmin();
+      allow create: if isValidId(movieId) && isAdmin() && isValidMovieDoc(incoming());
+      allow update: if isValidId(movieId) && isValidMovieDoc(incoming()) && (
+        isAdmin() || (
+          isSignedIn() && isNotBanned() &&
+          existing().status == 'published' &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['views', 'likesCount']) &&
+          incoming().views >= existing().views &&
+          incoming().views <= existing().views + 1 &&
+          incoming().likesCount >= existing().likesCount - 1 &&
+          incoming().likesCount <= existing().likesCount + 1
+        )
+      );
+      allow delete: if isValidId(movieId) && isAdmin();
+    }
+
+    // Series seasons and episodes
+    match /series/{seriesId}/seasons/{seasonId}/episodes/{episodeId} {
+      allow read: if true;
+      allow create, update: if isValidId(seriesId) && isValidId(seasonId) && isValidId(episodeId) &&
+        isAdmin() && isValidEpisodeDoc(incoming());
+      allow delete: if isValidId(seriesId) && isValidId(seasonId) && isValidId(episodeId) && isAdmin();
+    }
+
+    // Genres
+    match /genres/{genreId} {
+      allow read: if true;
+      allow create, update: if isValidId(genreId) && isAdmin() && isValidGenreDoc(incoming());
+      allow delete: if isValidId(genreId) && isAdmin();
+    }
+
+    // Banners
+    match /banners/{bannerId} {
+      allow get: if isValidId(bannerId) && (existing().isActive == true || isAdmin());
+      allow list: if resource.data.isActive == true || isAdmin();
+      allow create, update: if isValidId(bannerId) && isAdmin() && isValidBannerDoc(incoming());
+      allow delete: if isValidId(bannerId) && isAdmin();
+    }
+
+    // Comments
+    match /comments/{commentId} {
+      allow get: if isValidId(commentId) && (existing().isHidden == false || isAdmin() || isOwner(existing().uid));
+      allow list: if resource.data.isHidden == false || isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow create: if isValidId(commentId) && isSignedIn() && isNotBanned() &&
+        isValidCommentDoc(incoming()) &&
+        incoming().uid == request.auth.uid &&
+        incoming().isHidden == false &&
+        exists(/databases/$(database)/documents/movies/$(incoming().movieId));
+      allow update: if isValidId(commentId) && isValidCommentDoc(incoming()) && (
+        isAdmin() || (
+          isOwner(existing().uid) && isNotBanned() &&
+          incoming().uid == existing().uid &&
+          incoming().movieId == existing().movieId &&
+          incoming().isHidden == existing().isHidden &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['text'])
+        )
+      );
+      allow delete: if isValidId(commentId) && (isAdmin() || (isOwner(existing().uid) && isNotBanned()));
+    }
+
+    // Reports
+    match /reports/{reportId} {
+      allow get: if isValidId(reportId) && (isAdmin() || isOwner(existing().uid));
+      allow list: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow create: if isValidId(reportId) && isSignedIn() && isNotBanned() &&
+        isValidReportDoc(incoming()) &&
+        incoming().uid == request.auth.uid &&
+        incoming().status == 'open';
+      allow update: if isValidId(reportId) && isAdmin() && isValidReportDoc(incoming());
+      allow delete: if isValidId(reportId) && isAdmin();
+    }
+
+    // Site settings
+    match /settings/{settingId} {
+      allow read: if true;
+      allow create, update: if isValidId(settingId) && isAdmin() && isValidSiteSettingsDoc(incoming());
+      allow delete: if isValidId(settingId) && isAdmin();
+    }
+
+    // Admin activity logs
+    match /activityLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isValidId(logId) && isAdmin() && isValidActivityLogDoc(incoming()) &&
+        incoming().adminUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // Monthly subscription plans
+    match /plans/{planId} {
+      allow get: if isValidId(planId) && (existing().isActive == true || isAdmin());
+      allow list: if resource.data.isActive == true || isAdmin();
+      allow create, update: if isValidId(planId) && isAdmin() && isValidPlanDoc(incoming());
+      allow delete: if isValidId(planId) && isAdmin();
+    }
+
+    // Custom informational pages
+    match /pages/{pageId} {
+      allow get: if isValidId(pageId) && (existing().status == 'published' || isAdmin());
+      allow list: if resource.data.status == 'published' || isAdmin();
+      allow create, update: if isValidId(pageId) && isAdmin() && isValidCustomPageDoc(incoming());
+      allow delete: if isValidId(pageId) && isAdmin();
+    }
+
+    // Contact form messages (public submit, admin-only read/manage)
+    match /messages/{messageId} {
+      allow get, list: if isAdmin();
+      allow create: if isValidId(messageId) && isValidContactMessageDoc(incoming()) && incoming().status == 'unread';
+      allow update: if isValidId(messageId) && isAdmin() && isValidContactMessageDoc(incoming());
+      allow delete: if isValidId(messageId) && isAdmin();
+    }
+
+    // Advertising: Custom Image Ads (public active read, admin CRUD, bounded metric increments)
+    match /customAds/{adId} {
+      allow get: if isValidId(adId) && (existing().status == 'active' || isAdmin());
+      allow list: if resource.data.status == 'active' || isAdmin();
+      allow create: if isValidId(adId) && isAdmin() && isValidCustomAdDoc(incoming());
+      allow update: if isValidId(adId) && isValidCustomAdDoc(incoming()) && (
+        isAdmin() || (
+          existing().status == 'active' &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['impressions', 'clicks']) &&
+          incoming().impressions >= existing().impressions &&
+          incoming().impressions <= existing().impressions + 20 &&
+          incoming().clicks >= existing().clicks &&
+          incoming().clicks <= existing().clicks + 20
+        )
+      );
+      allow delete: if isValidId(adId) && isAdmin();
+    }
+
+    // Advertising: VAST Video & Overlay Ads (public active read, admin CRUD, bounded metric increments)
+    match /vastAds/{adId} {
+      allow get: if isValidId(adId) && (existing().status == 'active' || isAdmin());
+      allow list: if resource.data.status == 'active' || isAdmin();
+      allow create: if isValidId(adId) && isAdmin() && isValidVastAdDoc(incoming());
+      allow update: if isValidId(adId) && isValidVastAdDoc(incoming()) && (
+        isAdmin() || (
+          existing().status == 'active' &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['impressions', 'completions', 'skips', 'clicks', 'errors']) &&
+          incoming().impressions >= existing().impressions &&
+          incoming().impressions <= existing().impressions + 20 &&
+          incoming().completions >= existing().completions &&
+          incoming().completions <= existing().completions + 20 &&
+          incoming().skips >= existing().skips &&
+          incoming().skips <= existing().skips + 20 &&
+          incoming().clicks >= existing().clicks &&
+          incoming().clicks <= existing().clicks + 20 &&
+          incoming().errors >= existing().errors &&
+          incoming().errors <= existing().errors + 20
+        )
+      );
+      allow delete: if isValidId(adId) && isAdmin();
+    }
+
+    // Advertising: Granular Events (public telemetry create, admin-only read/analytics)
+    match /adEvents/{eventId} {
+      allow get, list: if isAdmin();
+      allow create: if isValidId(eventId) && isValidAdEventDoc(incoming());
+      allow update, delete: if isAdmin();
+    }
+
+    // Advertising: Global Settings (public read, admin write)
+    match /adSettings/{settingId} {
+      allow read: if true;
+      allow create, update: if isValidId(settingId) && isAdmin() && isValidAdSettingsDoc(incoming());
+      allow delete: if isValidId(settingId) && isAdmin();
+    }
+
+    // Access & Ad-Unlock Funnel Analytics Events (public create, admin-only read/manage)
+    match /accessEvents/{eventId} {
+      allow get, list: if isAdmin();
+      allow create: if isValidId(eventId) && isValidAccessEventDoc(incoming());
+      allow update, delete: if isAdmin();
+    }
+  }
+}

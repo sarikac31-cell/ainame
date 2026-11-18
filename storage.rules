@@ -1,0 +1,78 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        (request.auth.token.email == 'krushnachaware84@gmail.com' && request.auth.token.email_verified == true) ||
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    function isImageUnder5MB() {
+      return request.resource.size <= 5 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*');
+    }
+
+    function isSubtitleUnder2MB() {
+      return request.resource.size <= 2 * 1024 * 1024;
+    }
+
+    function isAdImageUnder1MB() {
+      return request.resource.size <= 1 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*');
+    }
+
+    // Public media assets managed by admins
+    match /posters/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin() && isImageUnder5MB();
+      allow delete: if isAdmin();
+    }
+
+    match /banners/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin() && isImageUnder5MB();
+      allow delete: if isAdmin();
+    }
+
+    match /branding/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin() && isImageUnder5MB();
+      allow delete: if isAdmin();
+    }
+
+    match /ads/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin() && isAdImageUnder1MB();
+      allow delete: if isAdmin();
+    }
+
+    match /thumbnails/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin() && isImageUnder5MB();
+      allow delete: if isAdmin();
+    }
+
+    match /subtitles/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin() && isSubtitleUnder2MB();
+      allow delete: if isAdmin();
+    }
+
+    // User profile avatars
+    match /avatars/{uid}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isSignedIn() && request.auth.uid == uid && isImageUnder5MB();
+      allow delete: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+    }
+
+    // Default deny
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
